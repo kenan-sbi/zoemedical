@@ -1,0 +1,9 @@
+DISCHARGE SUMMARY — King ___ Hospital
+Patient: Mohammed A.   MRN: 44821   DOB: 1979-03-11
+Admitted with chest pain and shortness of breath.
+Troponin 0.9 ng/mL (elevated). ECG: no evidence of acute myocardial infarction on serial tracings.
+Echocardiogram: EF 45%, mild LV dysfunction.
+Discharge medications: Aspirin 75 mg once daily; Atorvastatin 40 mg at night.
+Past medical history: Type 2 diabetes mellitus since 2018; hypertension.
+Allergies: penicillin.
+Plan: cardiology follow-up in 2 weeks; repeat lipid panel in 6 weeks.

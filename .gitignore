@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# next.js build
+.next/
+out/
+next-env.d.ts
+tsconfig.tsbuildinfo
+dist/
+
+# env & secrets — NEVER commit real values
+.env
+.env.*
+!.env.example
+
+# private keys / certs
+*.pem
+*.key
+
+# local dev file storage (patient documents / photos — PHI, never commit)
+uploads/
+
+# test datasets / fixtures (regenerate locally)
+hair_cases/
+
+# misc
+*.log
+.DS_Store

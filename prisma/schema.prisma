@@ -1,0 +1,264 @@
+// MedIntel MVP — data spine
+// FHIR-shaped so structured records export to FHIR/NPHIES later without a rewrite.
+// CORE RULE: no ClinicalRecord may exist without a Provenance link. Enforced in code (persist stage)
+// and by the required relation below.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- People & access ----------
+enum Role {
+  OWNER
+  CLINICIAN
+  REVIEWER
+  COORDINATOR
+}
+
+// A clinic team. Users belong to one clinic; patients/cases are shared within it.
+model Clinic {
+  id        String    @id @default(cuid())
+  name      String
+  createdAt DateTime  @default(now())
+  users     User[]
+  patients  Patient[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  role      Role     @default(COORDINATOR)
+  license   String?  // physician license #, stamped on sign-off
+  clinicId  String?
+  clinic    Clinic?  @relation(fields: [clinicId], references: [id])
+  createdAt DateTime @default(now())
+  reviews   Review[]
+  signOffs  SignOff[]
+  audits    AuditLog[]
+}
+
+model Patient {
+  id          String   @id @default(cuid())
+  displayName String
+  dob         DateTime?
+  identifiers Json?    // passport, national id, MRN...
+  consent     Json?    // who may view/share, scope, expiry — enforced later
+  clinicId    String?  // shared within the clinic team
+  clinic      Clinic?  @relation(fields: [clinicId], references: [id])
+  createdAt   DateTime @default(now())
+  documents   Document[]
+  records     ClinicalRecord[]
+  cases       Case[]
+}
+
+// ---------- Documents & processing ----------
+enum JobStage {
+  INGEST
+  OCR
+  CLASSIFY
+  EXTRACT
+  VERIFY
+  CODE
+  PERSIST
+  DONE
+  FAILED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  filename    String
+  mimeType    String
+  storageKey  String   // object-storage pointer
+  hash        String   // dedupe identical files
+  docType     String?  // discharge summary, path, radiology... (set at CLASSIFY)
+  language    String?
+  ocrBlocks   Json?    // [{text, page, bbox}] — page+coords preserved for provenance
+  createdAt   DateTime @default(now())
+  job         ProcessingJob?
+  provenances Provenance[]
+}
+
+model ProcessingJob {
+  id         String    @id @default(cuid())
+  documentId String    @unique
+  document   Document  @relation(fields: [documentId], references: [id])
+  stage      JobStage  @default(INGEST)
+  status     JobStatus @default(QUEUED)
+  timings    Json?
+  error      String?
+  updatedAt  DateTime  @updatedAt
+}
+
+// ---------- The structured clinical record (FHIR-shaped) ----------
+enum ResourceType {
+  OBSERVATION
+  CONDITION
+  MEDICATION
+  PROCEDURE
+  ALLERGY
+  IMMUNIZATION
+}
+
+enum AssertionStatus {
+  CONFIRMED
+  SUSPECTED
+  HISTORICAL
+  RULED_OUT
+  FAMILY_HISTORY
+}
+
+enum FieldStatus {
+  EXTRACTED
+  NEEDS_REVIEW
+  ACCEPTED
+  CORRECTED
+}
+
+model ClinicalRecord {
+  id         String          @id @default(cuid())
+  patientId  String
+  patient    Patient         @relation(fields: [patientId], references: [id])
+  type       ResourceType
+  // coding block: { system: "LOINC"|"ICD10"|"SNOMED"|"RXNORM", code, display }
+  coding     Json?
+  payload    Json            // value/unit/range/flag for Observation; drug/dose/route for Medication; etc.
+  assertion  AssertionStatus @default(CONFIRMED)
+  negated    Boolean         @default(false)   // "no evidence of X" — safety critical
+  effective  DateTime?
+  effectiveApprox Boolean     @default(false)   // date fell back to the DOCUMENT's date, not the fact's own sentence -> shown "~2017"
+  confidence Float?
+  status     FieldStatus     @default(EXTRACTED)
+  // MANDATORY provenance — a record cannot be persisted without it
+  provenanceId String        @unique
+  provenance   Provenance    @relation(fields: [provenanceId], references: [id])
+  createdAt  DateTime        @default(now())
+}
+
+// Every fact traces here: which document, which page, which exact text span, which model.
+model Provenance {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id])
+  page       Int?
+  spanStart  Int?
+  spanEnd    Int?
+  sourceText String   // the exact quoted source that produced the fact
+  model      String?  // model + version that extracted it
+  verifier   String?  // agree/disagree outcome (added when Verify stage lands)
+  record     ClinicalRecord?
+}
+
+// ---------- Case, review, sign-off, completeness ----------
+model Case {
+  id         String   @id @default(cuid())
+  patientId  String
+  patient    Patient  @relation(fields: [patientId], references: [id])
+  procedure  String?  // target procedure -> which completeness template applies
+  score      Float?   // completeness %
+  assessment Json?    // itemized: present-valid / stale / missing / referenced-not-uploaded
+  summary    String?  // cached AI synopsis (regenerated only when the record set changes)
+  summaryKey String?  // fingerprint of the records the cached summary was built from
+  reviews    Review[]
+  signOff    SignOff?
+  createdAt  DateTime @default(now())
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  corrections Json?  // captured for the feedback loop
+  createdAt DateTime @default(now())
+}
+
+model SignOff {
+  id        String   @id @default(cuid())
+  caseId    String   @unique
+  case      Case     @relation(fields: [caseId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  license   String?  // stamped "Reviewed by Dr X, license #"
+  createdAt DateTime @default(now())
+}
+
+model CompletenessTemplate {
+  id        String @id @default(cuid())
+  procedure String @unique
+  // [{ key, label, required, recencyDays }]  — physician-authored
+  items     Json
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  resource  String
+  meta      Json?
+  createdAt DateTime @default(now())
+}
+
+// ---------- Doctor Console (standalone) — hair-transplant surgeon's teaching library ----------
+// A private tool where the surgeon uploads past cases (standardized photos + his own judgment) so
+// the system learns HIS standards. Independent of the clinical document pipeline above.
+model HairCase {
+  id        String   @id @default(cuid())
+  sex       String   // "male" | "female"
+  stage     String   // Norwood (male) or Ludwig (female) stage the surgeon assigns
+  graftMin  Int?     // graft count/range HE would quote
+  graftMax  Int?
+  technique String?  // "FUE" | "FUT" | "DHI"
+  notes     String?
+  photos    Json     // { front, top, crown, left, right : storageKey }
+  isTest    Boolean  @default(false) // a "test it" upload vs a taught library case
+  estimate  Json?    // system's estimate stored alongside (for test cases)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// The surgeon's editable rulebook (singleton). Target density per zone, graft range per stage,
+// donor-supply guidance, red-flags — applied by the agent to keep it HIS standards.
+model HairRulebook {
+  id        String   @id @default("default")
+  rules     Json
+  updatedAt DateTime @updatedAt
+}
+
+// A pre-consultation ASSESSMENT: intake + photos -> agent estimate (ranges) -> physician sign-off.
+// Preliminary until signed. Sign-off mirrors the medical build (name + license + timestamp + lock).
+model HairAssessment {
+  id            String    @id @default(cuid())
+  age           Int?
+  sex           String    // "male" | "female"
+  duration      String?   // how long the loss has been progressing (free text, e.g. "3 years")
+  photos        Json      // { front, top, crown, left, right : storageKey }
+  vision        Json?     // { stage, pattern, recession, coverage, description, confidence, method }
+  estimate      Json?     // { stage, graftMin, graftMax, coverageNote, summary, technique, referenceCaseIds, ruleRange, redFlags, basedOn }
+  // physician review + sign-off
+  finalStage    String?
+  finalGraftMin Int?
+  finalGraftMax Int?
+  finalNotes    String?
+  signedName    String?
+  signedLicense String?
+  signedAt      DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
