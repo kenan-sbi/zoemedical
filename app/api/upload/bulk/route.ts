@@ -3,6 +3,10 @@ import { prisma } from '@/lib/db';
 import { currentUser } from '@/lib/session';
 import { storeUpload } from '@/lib/ingest';
 
+// Each file's extraction runs inline via waitUntil on Vercel — give the function room.
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 // Bulk upload: attaches EVERY dropped file to ONE selected patient (Patient has many Documents).
 // A patientId is REQUIRED — we never auto-create a patient per file (that scattered one patient's
 // documents across many records). The caller selects/creates the patient first.

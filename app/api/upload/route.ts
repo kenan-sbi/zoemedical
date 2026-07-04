@@ -6,6 +6,10 @@ import { PrismaClient } from '@prisma/client';
 import { createHash } from 'crypto';
 const prisma = new PrismaClient();
 
+// Extraction runs inline via waitUntil on Vercel — give it room (bounded by the plan's max).
+export const runtime = 'nodejs';
+export const maxDuration = 60;
+
 export async function POST(req: NextRequest) {
   const token = req.headers.get('authorization')?.replace('Bearer ', '') ?? '';
   const user = await getSessionUser(token);
