@@ -1,0 +1,46 @@
+name: Deploy to Hetzner
+
+# Auto-deploy on every push to main. SSHes into the Hetzner box, pulls the
+# latest code, and rebuilds/restarts the zoe-med compose project. Only the
+# zoe-med containers are touched — the other sites on the box are unaffected.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # allow manual "Run workflow" from the Actions tab
+
+concurrency:
+  group: deploy-hetzner
+  cancel-in-progress: false   # never interrupt an in-flight deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          port: ${{ secrets.HETZNER_PORT }}
+          # Fail the job if any command fails, and stop on first error.
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd /opt/zoe-medical
+            echo "==> Pulling latest main"
+            git fetch --all
+            git reset --hard origin/main
+            echo "==> Rebuilding and restarting the zoe-med stack"
+            docker compose -f docker-compose.prod.yml up -d --build
+            echo "==> Pruning old images"
+            docker image prune -f
+            echo "==> Waiting for the web container to answer"
+            for i in $(seq 1 30); do
+              if docker exec ryansyria-caddy wget -qO- http://zoe-med-web:3000 >/dev/null 2>&1; then
+                echo "OK: zoe-med-web is responding"; exit 0
+              fi
+              echo "waiting for zoe-med-web ($i/30)"; sleep 3
+            done
+            echo "ERROR: zoe-med-web did not come up in time"; exit 1
