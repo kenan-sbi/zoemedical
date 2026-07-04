@@ -1,60 +1,61 @@
 # Deploying Zoe Medical on the Hetzner box (alongside zoepulse.pro)
 
-Goal: run Zoe Medical at **https://zm.zoepulse.pro** on the same server that already hosts
-zoepulse.pro (88.99.192.23), **without touching the existing zoepulse.pro site**.
+Runs Zoe Medical at **https://med.zoepulse.pro** on the same server that hosts zoepulse.pro
+(88.99.192.23), **without touching the existing sites**.
 
 - **Database:** Supabase (external, already provisioned — schema is pushed).
-- **App:** Docker Compose — Next.js web + BullMQ worker + Redis (this repo's `docker-compose.prod.yml`).
+- **App:** Docker Compose — Next.js web + BullMQ worker + Redis (`docker-compose.prod.yml`).
 - **Files:** persist on a Docker volume (`uploads`) — local-disk backend, no cloud storage needed.
-- **Reverse proxy:** a new subdomain block added to the box's existing nginx (or Caddy).
+- **Reverse proxy:** the box's ONE shared Caddy (`ryansyria-caddy`) reaches the app container by
+  name over the external `edge` docker network. No host ports are published.
 
-This runs as an **isolated subdomain**, so it can't interfere with zoepulse.pro.
+## Why it's isolated (won't break Ryan's site)
+- The compose project is named `zoe-med`; only the `web` container joins `edge` (as `zoe-med-web`).
+  `redis` + `worker` stay on a private `internal` network.
+- `med.zoepulse.pro` is NOT in the Caddyfile's layer4 SNI passthrough (only `zoepulse.pro`/`www`/
+  `dev` are), so it's a normal Caddy TLS site — it does not touch the `zoe-nginx` passthrough.
+- Caddy reload is graceful; the other sites stay up.
 
 ---
 
-## What the admin needs to do (≈15 min)
+## What the admin does on the box (≈15 min)
 
-Prereq: Docker + the compose plugin on the box (`docker --version`, `docker compose version`).
-If missing: `curl -fsSL https://get.docker.com | sh`.
+Prereq: Docker + compose plugin, and the shared `edge` network (already exists — it fronts
+ryansyria + seloflex). Confirm: `docker network ls | grep edge`.
 
 ```bash
 # 1. Get the code
-sudo git clone https://github.com/kenan-sbi/zoemedical.git /opt/zoemedical
-cd /opt/zoemedical
+sudo git clone https://github.com/kenan-sbi/zoemedical.git /opt/zoe-med
+cd /opt/zoe-med
 
-# 2. Create the production env file from the template, then fill in real secrets
+# 2. Create the production env file, then fill in real secrets
 cp .env.production.example .env.production
 sudo nano .env.production        # DATABASE_URL, GEMINI_API_KEY, SUPABASE_*, DOCTOR_PASSCODE
+                                 # leave REDIS_URL and SUPABASE_SERVICE_ROLE_KEY unset
 
-# 3. Build & start (web on 127.0.0.1:3010, worker, redis)
+# 3. Build & start (project name is pinned to zoe-med inside the compose file)
 docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml ps
-curl -sSI http://127.0.0.1:3010 | head -1      # expect HTTP 200/307
+docker compose -f docker-compose.prod.yml ps      # web, worker, redis = running
 
-# 4. Add the reverse proxy for the subdomain (pick ONE):
-#    nginx (matches the current zoepulse.pro setup):
-#      see deploy/nginx-zm.zoepulse.pro.conf  (install steps are in that file)
-#    Caddy (simpler, auto-HTTPS):
-#      append deploy/Caddy-zm.snippet to the Caddyfile, then reload caddy
+# 4. Add the reverse-proxy site block for med.zoepulse.pro (see deploy/Caddy-med.snippet):
+#    - append that block to /opt/ryansyria/deploy/Caddyfile   (bind-mounted into caddy)
+#    - docker exec ryansyria-caddy caddy validate --config /etc/caddy/Caddyfile
+#    - docker exec ryansyria-caddy caddy reload   --config /etc/caddy/Caddyfile   # graceful
 ```
 
 ## What you (domain owner) do — in GoDaddy
 
-Add a DNS record so the subdomain points at the box:
+- Type **A**, Name **med**, Value **88.99.192.23**
 
-- Type **A**, Name **zm**, Value **88.99.192.23**  (TTL default)
-
-(Do this once the app is up; it propagates in a few minutes. TLS is issued automatically by
-certbot/Caddy after DNS resolves.)
-
-Then visit **https://zm.zoepulse.pro/workspace** (and **/console** for the Doctor Console).
+(Caddy issues the TLS cert automatically once DNS resolves.) Then visit
+**https://med.zoepulse.pro/workspace** (and **/console** for the Doctor Console).
 
 ---
 
 ## Updating later
 
 ```bash
-cd /opt/zoemedical && git pull
+cd /opt/zoe-med && git pull
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
