@@ -16,6 +16,9 @@ WORKDIR /app
 # Install deps first (better layer caching). npm ci runs postinstall -> prisma generate,
 # and downloads Chromium for puppeteer.
 COPY package.json package-lock.json ./
+# prisma/ is needed here because npm ci's postinstall runs `prisma generate`,
+# which requires prisma/schema.prisma to already be present.
+COPY prisma ./prisma
 RUN npm ci
 
 # App source, then production build.
