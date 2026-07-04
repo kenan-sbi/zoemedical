@@ -1,0 +1,31 @@
+# Reverse proxy for med.zoepulse.pro -> the Zoe Medical web container.
+#
+# This box runs ONE shared Caddy container (ryansyria-caddy) that fronts every app over a
+# docker network named `edge`, reaching each app CONTAINER-TO-CONTAINER by name. This block
+# follows that exact pattern (same as the ryansyria.com / seloflexsyria.com blocks): Caddy
+# terminates TLS (automatic Let's Encrypt) and proxies to the zoe-med web container by name.
+#
+# `med.zoepulse.pro` is NOT in the layer4 SNI/Host passthrough list at the top of the Caddyfile
+# (that list is only zoepulse.pro / www / dev), so this connection falls through to a normal
+# Caddy HTTPS site block — exactly what we want. It does NOT touch the zoe-nginx passthrough.
+#
+# Install:
+#   1. append this block to /opt/ryansyria/deploy/Caddyfile   (the host file bind-mounted into caddy)
+#   2. docker exec ryansyria-caddy caddy validate --config /etc/caddy/Caddyfile
+#   3. docker exec ryansyria-caddy caddy reload   --config /etc/caddy/Caddyfile   # graceful; other sites stay up
+
+med.zoepulse.pro {
+        encode gzip zstd
+        reverse_proxy zoe-med-web:3000
+
+        request_body {
+                max_size 50MB          # allow large document/photo uploads
+        }
+
+        header {
+                X-Frame-Options "SAMEORIGIN"
+                X-Content-Type-Options "nosniff"
+                Referrer-Policy "strict-origin-when-cross-origin"
+                -Server
+        }
+}

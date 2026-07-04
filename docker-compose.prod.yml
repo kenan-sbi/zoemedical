@@ -1,26 +1,38 @@
 # Production stack for the Hetzner box: Next.js web + BullMQ worker + Redis.
 # Postgres is external (Supabase) — not in this file. Files persist on the `uploads` volume.
-# The web port binds to 127.0.0.1 only; the box's existing nginx/Caddy reverse-proxies to it.
+#
+# This box fronts every app with a single shared Caddy ("ryansyria-caddy") on an EXTERNAL
+# docker network named `edge`. Caddy reaches each app CONTAINER-TO-CONTAINER by name — no app
+# publishes host ports. So the web service joins `edge` and Caddy proxies to `zoe-med-web:3000`.
+# (See deploy/Caddy-med.snippet for the matching site block.)
+#
+# The project name is pinned to `zoe-med` so the container gets a stable, predictable DNS name
+# on `edge` regardless of the directory it's cloned into.
 #
 #   docker compose -f docker-compose.prod.yml up -d --build
 #
+name: zoe-med
+
 services:
   redis:
     image: redis:7
     restart: unless-stopped
+    networks: [internal]            # private to this project only — not on `edge`
     volumes:
       - redis-data:/data
 
   web:
     build: .
+    container_name: zoe-med-web     # stable name Caddy proxies to on the `edge` network
     restart: unless-stopped
     env_file: .env.production
     environment:
-      REDIS_URL: redis://redis:6379   # in-network worker queue; overrides any value in .env.production
-    ports:
-      - "127.0.0.1:3010:3000"         # localhost only — reverse proxy sits in front (see deploy/)
+      REDIS_URL: redis://redis:6379 # in-network worker queue; overrides any value in .env.production
+    networks:
+      - internal                    # to reach redis
+      - edge                        # so the shared Caddy can reverse_proxy to this container
     volumes:
-      - uploads:/app/uploads          # persistent document/photo storage (local-disk backend)
+      - uploads:/app/uploads        # persistent document/photo storage (local-disk backend)
     depends_on:
       - redis
 
@@ -31,10 +43,19 @@ services:
     env_file: .env.production
     environment:
       REDIS_URL: redis://redis:6379
+    networks: [internal]            # only needs redis + the uploads volume; not on `edge`
     volumes:
-      - uploads:/app/uploads          # same volume as web, so the worker reads uploaded files
+      - uploads:/app/uploads        # same volume as web, so the worker reads uploaded files
     depends_on:
       - redis
+
+networks:
+  internal:                         # private bridge for web <-> worker <-> redis
+  # Shared bridge with the ryansyria Caddy front-proxy. Created externally
+  # (docker network create edge); already used by ryansyria + seloflex + zoe.
+  edge:
+    external: true
+    name: edge
 
 volumes:
   redis-data:
