@@ -3,14 +3,20 @@ import { prisma } from '@/lib/db';
 import { caseForPatient } from '@/lib/review';
 import { currentUser } from '@/lib/session';
 import { logAudit } from '@/lib/audit';
-import puppeteer from 'puppeteer';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+// PDF export renders HTML via headless Chromium (puppeteer). Serverless platforms (Vercel) don't
+// ship Chromium and exceed the function size limit, so this is disabled there — the deliverable is
+// still viewable in-app; only the downloadable PDF is unavailable until a serverless-Chromium
+// (e.g. @sparticuz/chromium) or an external render service is wired up.
+const PDF_DISABLED = !!process.env.VERCEL;
+
 // Server-side HTML -> PDF of a generated deliverable. GATE: nothing clinical exports UNSIGNED — a
 // case must be physician-signed first. Signed exports carry the physician stamp. RTL-aware (Arabic).
 export async function POST(req: NextRequest) {
+  if (PDF_DISABLED) return NextResponse.json({ error: 'PDF export is unavailable in this hosting environment. View the deliverable in-app instead.' }, { status: 501 });
   const { patientId, title, body, sourceRecordIds, dir } = await req.json().catch(() => ({} as any));
   if (!patientId || !body) return NextResponse.json({ error: 'patientId + body required' }, { status: 400 });
 
@@ -34,6 +40,7 @@ export async function POST(req: NextRequest) {
     stamp: signOff ? { name: signer?.name ?? null, license: signOff.license ?? signer?.license ?? null, at: signOff.createdAt.toLocaleString() } : null,
   });
 
+  const puppeteer = (await import('puppeteer')).default; // dynamic: keep Chromium out of the serverless bundle
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   try {
     const page = await browser.newPage();

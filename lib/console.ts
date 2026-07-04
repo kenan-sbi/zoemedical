@@ -2,8 +2,7 @@
 // standards" estimator (vision for stage + HIS taught cases for the graft range).
 import type { NextRequest } from 'next/server';
 import { createHash } from 'crypto';
-import { writeFile, mkdir, readFile } from 'fs/promises';
-import { join, resolve } from 'path';
+import { putObject, getObject } from './storage';
 import { prisma } from './db';
 
 // ---- simple auth (single shared passcode for the surgeon) ----
@@ -13,19 +12,18 @@ export const DC_TOKEN = createHash('sha256').update('dc:' + PASSCODE).digest('he
 export function checkPasscode(input: unknown) { return typeof input === 'string' && input === PASSCODE; }
 export function isAuthed(req: NextRequest) { return req.cookies.get(DC_COOKIE)?.value === DC_TOKEN; }
 
-// ---- photo storage (local, mirrors the existing uploads/ pattern) ----
+// ---- photo storage (object-storage seam: Supabase Storage on Vercel, local disk in dev) ----
 const EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 export async function savePhoto(buf: Buffer, mime: string): Promise<string> {
   const ext = EXT[mime] ?? 'jpg';
   const hash = createHash('sha256').update(buf).digest('hex').slice(0, 24);
   const key = `uploads/console/${hash}.${ext}`;
-  await mkdir(join(process.cwd(), 'uploads', 'console'), { recursive: true });
-  await writeFile(join(process.cwd(), key), buf);
+  await putObject(key, buf, mime);
   return key;
 }
 export async function readPhoto(key: string): Promise<{ buf: Buffer; mime: string }> {
   if (!/^uploads\/console\//.test(key)) throw new Error('bad key'); // never read outside the console dir
-  const buf = await readFile(resolve(process.cwd(), key));
+  const buf = await getObject(key);
   const ext = key.split('.').pop() ?? 'jpg';
   const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
   return { buf, mime };

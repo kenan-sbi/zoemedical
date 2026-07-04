@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { readFile } from 'fs/promises';
-import { resolve } from 'path';
+import { getObject } from '@/lib/storage';
 
 // Original source text for a document (the Documents tab).
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -14,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ text: null, note: 'Non-text document — OCR/original render coming in a later slice.' });
   }
   try {
-    const raw = await readFile(resolve(process.cwd(), doc.storageKey), 'utf8');
+    const raw = (await getObject(doc.storageKey)).toString('utf8');
     const { fixArabic } = await import('@/lib/text');
     return NextResponse.json({ text: fixArabic(raw), translated: null });
   } catch {

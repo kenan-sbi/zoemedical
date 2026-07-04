@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionUser, DEV_USER } from '@/lib/auth';
-import { enqueueDocument } from '@/lib/queue';
+import { dispatchDocument } from '@/lib/dispatch';
+import { putObject } from '@/lib/storage';
 import { PrismaClient } from '@prisma/client';
 import { createHash } from 'crypto';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
 const prisma = new PrismaClient();
 
 export async function POST(req: NextRequest) {
@@ -20,13 +19,10 @@ export async function POST(req: NextRequest) {
   const buf = Buffer.from(await file.arrayBuffer());
   const hash = createHash('sha256').update(buf).digest('hex');
 
-  // LOCAL DEV: persist the file to ./uploads and point storageKey at it.
-  // TODO(storage): at the PHI boundary, upload `buf` to S3-compatible object storage
-  // (in-Kingdom bucket) and set storageKey to that object key instead of a local path.
+  // Persist the file to object storage (Supabase Storage on Vercel, local disk in dev).
   const safeName = file.name.replace(/[^\w.\-]/g, '_');
   const storageKey = `uploads/${hash}__${safeName}`;
-  await mkdir(join(process.cwd(), 'uploads'), { recursive: true });
-  await writeFile(join(process.cwd(), storageKey), buf);
+  await putObject(storageKey, buf, file.type);
 
   // DEV: seed the bypass user so the AuditLog FK resolves. No-op once real auth is on.
   if (process.env.DEV_NO_AUTH === '1' && user.id === DEV_USER.id) {
@@ -42,6 +38,6 @@ export async function POST(req: NextRequest) {
   });
   await prisma.processingJob.create({ data: { documentId: doc.id } });
   await prisma.auditLog.create({ data: { userId: user.id, action: 'UPLOAD', resource: doc.id } });
-  await enqueueDocument(doc.id);
+  await dispatchDocument(doc.id);
   return NextResponse.json({ documentId: doc.id, status: 'queued' });
 }

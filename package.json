@@ -9,11 +9,13 @@
     "worker": "tsx --env-file=.env workers/extract.worker.ts",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
+    "postinstall": "prisma generate",
     "prove": "node scripts/prove_contract.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
     "@supabase/supabase-js": "^2.45.0",
+    "@vercel/functions": "^1.6.0",
     "bullmq": "^5.20.0",
     "ioredis": "^5.4.1",
     "next": "14.2.15",
