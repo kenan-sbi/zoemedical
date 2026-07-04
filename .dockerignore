@@ -1,0 +1,13 @@
+# Keep the build context small and avoid copying host (macOS) artifacts into the Linux image.
+node_modules
+.next
+.git
+.gitignore
+uploads
+hair_cases
+.env
+.env.*
+!.env.production.example
+npm-debug.log*
+*.log
+.DS_Store

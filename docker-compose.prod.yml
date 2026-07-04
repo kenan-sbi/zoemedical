@@ -1,0 +1,41 @@
+# Production stack for the Hetzner box: Next.js web + BullMQ worker + Redis.
+# Postgres is external (Supabase) — not in this file. Files persist on the `uploads` volume.
+# The web port binds to 127.0.0.1 only; the box's existing nginx/Caddy reverse-proxies to it.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+services:
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      REDIS_URL: redis://redis:6379   # in-network worker queue; overrides any value in .env.production
+    ports:
+      - "127.0.0.1:3010:3000"         # localhost only — reverse proxy sits in front (see deploy/)
+    volumes:
+      - uploads:/app/uploads          # persistent document/photo storage (local-disk backend)
+    depends_on:
+      - redis
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: npx tsx workers/extract.worker.ts   # env comes from the container, not a .env file
+    env_file: .env.production
+    environment:
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - uploads:/app/uploads          # same volume as web, so the worker reads uploaded files
+    depends_on:
+      - redis
+
+volumes:
+  redis-data:
+  uploads:
