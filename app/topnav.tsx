@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import { Stethoscope, Scissors, Lock, Menu } from 'lucide-react';
 
 // Shared top bar across both tools, so the doctor can flip between the Medical workspace and the
 // Hair console in one tap. `onMenu` (workspace only) surfaces the patient-drawer hamburger on phones.
@@ -21,7 +22,7 @@ export function TopNav({ active, onMenu }: { active: 'medical' | 'hair'; onMenu?
     await fetch('/api/console/login', { method: 'DELETE' }).catch(() => {});
     window.location.href = '/';
   }
-  const tab = (key: 'medical' | 'hair', href: string, icon: string, label: string) => {
+  const tab = (key: 'medical' | 'hair', href: string, Icon: typeof Stethoscope, label: string) => {
     const on = active === key;
     return (
       <a href={href} style={{
@@ -30,7 +31,7 @@ export function TopNav({ active, onMenu }: { active: 'medical' | 'hair'; onMenu?
         color: on ? '#fff' : SUB, background: on ? TEAL : 'transparent',
         boxShadow: on ? '0 1px 3px rgba(13,133,123,.35)' : 'none', whiteSpace: 'nowrap',
       }}>
-        <span style={{ fontSize: 15 }}>{icon}</span>{label}
+        <Icon size={16} strokeWidth={2.2} />{label}
       </a>
     );
   };
@@ -42,20 +43,20 @@ export function TopNav({ active, onMenu }: { active: 'medical' | 'hair'; onMenu?
     }}>
       {onMenu && isMobile && (
         <button onClick={onMenu} aria-label="Patients"
-          style={{ width: 36, height: 36, borderRadius: 9, border: `1px solid ${LINE}`, background: '#fff', color: TEAL, cursor: 'pointer', fontSize: 17, display: 'grid', placeItems: 'center', flexShrink: 0 }}>☰</button>
+          style={{ width: 36, height: 36, borderRadius: 9, border: `1px solid ${LINE}`, background: '#fff', color: TEAL, cursor: 'pointer', display: 'grid', placeItems: 'center', flexShrink: 0 }}><Menu size={19} /></button>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
         <div style={{ width: 28, height: 28, borderRadius: 8, background: `linear-gradient(145deg, ${TEAL}, ${DARK} 70%)`, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 14, boxShadow: '0 2px 6px rgba(13,133,123,.30)' }}>Z</div>
         {!isMobile && <div style={{ fontWeight: 800, fontSize: 15, color: INK, letterSpacing: -0.3 }}>Zoe</div>}
       </div>
       <div style={{ display: 'flex', gap: 4, background: '#f2f1ee', padding: 4, borderRadius: 11 }}>
-        {tab('medical', '/workspace', '🩺', 'Medical')}
-        {tab('hair', '/console', '💈', 'Hair')}
+        {tab('medical', '/workspace', Stethoscope, 'Medical')}
+        {tab('hair', '/console', Scissors, 'Hair')}
       </div>
       <div style={{ flex: 1 }} />
       <button onClick={lock} title="Lock (sign out)"
         style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${LINE}`, background: '#fff', color: SUB, borderRadius: 8, padding: isMobile ? '7px 10px' : '7px 13px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-        🔒{!isMobile && <span>Lock</span>}
+        <Lock size={14} />{!isMobile && <span>Lock</span>}
       </button>
     </header>
   );

@@ -59,7 +59,6 @@ function PhotoSlot({ label, value, onChange, small }: { label: string; value?: s
     if (r.ok) onChange(d.key); else alert(d.error || 'upload failed');
   }
   const h = small ? 92 : 116;
-  const mini: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: `1px solid ${C.border}`, background: '#fff', color: C.sub, borderRadius: 7, padding: '6px 9px' };
   return (
     <div style={{ position: 'relative' }}>
       <div style={{ height: h, borderRadius: 9, border: `1.5px dashed ${value ? C.accent : C.border}`, background: value ? '#000' : '#f7fafb', overflow: 'hidden', position: 'relative', display: 'grid', placeItems: 'center' }}>
@@ -69,10 +68,16 @@ function PhotoSlot({ label, value, onChange, small }: { label: string; value?: s
         ) : busy ? (
           <div style={{ fontSize: 12, color: C.sub }}>Uploading…</div>
         ) : (
-          <div style={{ display: 'flex', gap: 6 }}>
-            {/* Camera opens the phone camera on mobile; Images opens the gallery/file picker. */}
-            <label style={mini} title="Take photo"><Camera size={16} /><input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { pick(e.target.files?.[0] as File); e.currentTarget.value = ''; }} /></label>
-            <label style={mini} title="Choose from gallery"><Images size={16} /><input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { pick(e.target.files?.[0] as File); e.currentTarget.value = ''; }} /></label>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, padding: 4 }}>
+            {/* Camera opens the phone camera on mobile; the gallery link opens the file/photo picker. */}
+            <label title="Take a photo" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', background: C.primary, color: '#fff', borderRadius: 8, padding: '6px 11px', fontSize: 11, fontWeight: 700 }}>
+              <Camera size={15} /> Camera
+              <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { pick(e.target.files?.[0] as File); e.currentTarget.value = ''; }} />
+            </label>
+            <label title="Choose from gallery" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: C.accent, fontSize: 10.5, fontWeight: 600 }}>
+              <Images size={12} /> gallery
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { pick(e.target.files?.[0] as File); e.currentTarget.value = ''; }} />
+            </label>
           </div>
         )}
       </div>
