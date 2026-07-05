@@ -119,11 +119,20 @@ function PhotoSlots({ photos, set }: { photos: Photos; set: (p: Photos) => void 
                   <img src={photoUrl(val)} alt={s.label} draggable onDragStart={() => setDragFrom(s.key)} onDragEnd={() => setDragFrom(null)} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'grab' }} />
                   <button onClick={() => { const p = { ...photos }; delete p[s.key]; set(p); }} title="Remove" style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 10, border: 'none', background: 'rgba(0,0,0,.55)', color: '#fff', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}>×</button>
                 </>
+              ) : busy === s.key ? (
+                <div style={{ height: '100%', display: 'grid', placeItems: 'center', fontSize: 12, color: C.sub }}>Uploading…</div>
               ) : (
-                <label style={{ height: '100%', display: 'grid', placeItems: 'center', cursor: 'pointer', textAlign: 'center' }}>
-                  <div><div style={{ fontSize: 20, color: C.muted }}>{busy === s.key ? '…' : '＋'}</div><div style={{ fontSize: 11, fontWeight: 600, color: C.sub }}>{busy === s.key ? 'Uploading' : s.label}</div></div>
-                  <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(s.key, f); e.currentTarget.value = ''; }} />
-                </label>
+                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, padding: 4 }}>
+                  {/* Camera opens the phone camera on mobile; gallery opens the file/photo picker. */}
+                  <label title="Take a photo" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', background: C.primary, color: '#fff', borderRadius: 8, padding: '6px 11px', fontSize: 11, fontWeight: 700 }}>
+                    <Camera size={15} /> Camera
+                    <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(s.key, f); e.currentTarget.value = ''; }} />
+                  </label>
+                  <label title="Choose from gallery" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: C.accent, fontSize: 10.5, fontWeight: 600 }}>
+                    <Images size={12} /> gallery
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) upload(s.key, f); e.currentTarget.value = ''; }} />
+                  </label>
+                </div>
               )}
             </div>
             <div style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', marginTop: 3 }}>{s.label}</div>
