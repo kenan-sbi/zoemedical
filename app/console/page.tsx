@@ -16,13 +16,16 @@ function useIsMobile(breakpoint = 760) {
   return mobile;
 }
 
-// ---------- design tokens (same calm clinical palette as the main build) ----------
+// ---------- design tokens (IDENTICAL to the Medical workspace, so the two tools are uniform) ----------
 const C = {
-  primary: '#0f4c5c', primaryDark: '#0a3743', accent: '#2a8fa8', warm: '#b45309',
-  bg: '#eef2f5', card: '#ffffff', border: '#dce3ea', text: '#1b2a35', sub: '#5f7182', muted: '#93a1af',
+  primary: '#0d857b', primaryDark: '#0a6e66', primarySoft: '#e6f5f4', accent: '#0d857b',
+  bg: '#f6f5f3', card: '#ffffff', border: '#e4e1dc', line: '#eceae6',
+  text: '#1c1a17', sub: '#847f77', muted: '#a8a29a',
+  warm: '#b8860b', warmBg: '#fffbeb', warmBorder: '#fde68a',
+  danger: '#c4342d', dangerBg: '#fdecea', good: '#2a7d46', goodBg: '#e7f4ec', info: '#6366f1', infoBg: '#eef0fb',
 };
-const FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-const SHADOW = '0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.04)';
+const FONT = "'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+const SHADOW = '0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.05)';
 const card: React.CSSProperties = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: SHADOW };
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: C.accent, cursor: 'pointer', padding: 0, fontSize: 12.5, fontWeight: 600 };
 
