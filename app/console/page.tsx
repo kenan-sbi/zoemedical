@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { TopNav } from '../topnav';
 
 // Phone-width detector, so fixed multi-column grids can collapse instead of shrinking to slivers.
 function useIsMobile(breakpoint = 760) {
@@ -243,14 +244,14 @@ export default function ConsolePage() {
 
 function Shell({ children, onLogout }: { children: React.ReactNode; onLogout?: () => void }) {
   return (
-    <div style={{ minHeight: '100vh', background: C.bg, color: C.text, font: `14px ${FONT}` }}>
-      <header style={{ background: C.card, borderBottom: `1px solid ${C.border}`, padding: '13px clamp(12px, 4vw, 24px)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ width: 28, height: 28, borderRadius: 7, background: C.primary, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700 }}>Z</div>
-        <div><div style={{ fontWeight: 700, fontSize: 15, letterSpacing: -0.2 }}>Doctor Console</div><div style={{ fontSize: 11, color: C.muted }}>Hair-transplant standards — private teaching library</div></div>
-        <div style={{ flex: 1 }} />
-        {onLogout && <button onClick={onLogout} style={linkBtn}>Sign out</button>}
+    <div style={{ minHeight: '100dvh', background: C.bg, color: C.text, font: `14px ${FONT}` }}>
+      <TopNav active="hair" />
+      <header style={{ maxWidth: 860, margin: '0 auto', padding: '12px clamp(12px, 4vw, 24px) 0', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+        <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: -0.2 }}>Doctor Console</div>
+        <div style={{ fontSize: 11.5, color: C.muted }}>Hair-transplant standards — private teaching library</div>
+        {onLogout && <><div style={{ flex: 1 }} /><button onClick={onLogout} style={linkBtn}>Sign out</button></>}
       </header>
-      <main style={{ maxWidth: 860, margin: '0 auto', padding: '22px clamp(12px, 4vw, 24px) 60px' }}>{children}</main>
+      <main style={{ maxWidth: 860, margin: '0 auto', padding: '16px clamp(12px, 4vw, 24px) 60px' }}>{children}</main>
     </div>
   );
 }

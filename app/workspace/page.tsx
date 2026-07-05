@@ -1,6 +1,7 @@
 'use client';
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { TopNav } from '../topnav';
 
 const AUTH = { authorization: 'Bearer dev' }; // ignored when DEV_NO_AUTH=1
 
@@ -799,20 +800,17 @@ function WorkspaceInner() {
   })();
 
   return (
-    <div style={{ position: 'fixed', inset: 0, display: 'flex', background: C.bg, color: C.text, font: `14px ${FONT}` }}>
-      {/* MOBILE: hamburger opens the patient drawer */}
-      {isMobile && !navOpen && (
-        <button onClick={() => setNavOpen(true)} aria-label="Open menu"
-          style={{ position: 'fixed', top: 10, left: 12, zIndex: 55, width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.primary, boxShadow: SHADOW_MD, cursor: 'pointer', fontSize: 18, display: 'grid', placeItems: 'center' }}>☰</button>
-      )}
+    <div style={{ position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column', background: C.bg, color: C.text, font: `14px ${FONT}` }}>
+      <TopNav active="medical" onMenu={() => setNavOpen(true)} />
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, position: 'relative' }}>
       {/* MOBILE: backdrop behind the open drawer */}
       {isMobile && navOpen && (
-        <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(16,24,40,.42)' }} />
+        <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', top: 50, inset: '50px 0 0 0', zIndex: 55, background: 'rgba(16,24,40,.42)' }} />
       )}
       {/* LEFT: brand + intake + cases */}
       <aside style={{
         width: 272, background: C.card, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', overflow: 'auto',
-        ...(isMobile ? { position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 60, width: 'min(85vw, 320px)', transform: navOpen ? 'none' : 'translateX(-105%)', transition: 'transform .26s cubic-bezier(.22,.61,.36,1)' } : {}),
+        ...(isMobile ? { position: 'fixed', top: 50, bottom: 0, left: 0, zIndex: 60, width: 'min(85vw, 320px)', transform: navOpen ? 'none' : 'translateX(-105%)', transition: 'transform .26s cubic-bezier(.22,.61,.36,1)' } : {}),
       }}>
         <div style={{ padding: '17px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 30, height: 30, borderRadius: 9, background: `linear-gradient(145deg, ${C.accent}, ${C.primary} 65%)`, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 15, boxShadow: '0 2px 6px rgba(15,76,92,.30)' }}>Z</div>
@@ -924,7 +922,7 @@ function WorkspaceInner() {
         ) : (
           <div style={{ maxWidth: 980, margin: '0 auto' }}>
             {/* Sticky clinical header — identity, counts, and the allergy banner never scroll away */}
-            <div style={{ position: 'sticky', top: 0, zIndex: 20, background: C.bg, paddingTop: isMobile ? 54 : 16, boxShadow: '0 10px 16px -14px rgba(16,24,40,.35)' }}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 20, background: C.bg, paddingTop: 16, boxShadow: '0 10px 16px -14px rgba(16,24,40,.35)' }}>
               <PatientBanner name={ws.patient.displayName} sex={ws.patient.sex} age={ws.patient.age} records={ws.records}
                 docCount={ws.documents.length} activeCount={bannerCounts.active} medCount={bannerCounts.meds} signed={ws.case.signed} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, borderBottom: `1px solid ${C.border}`, background: C.bg, overflowX: 'auto' }} className="zscroll">
@@ -968,6 +966,7 @@ function WorkspaceInner() {
           </div>
         )}
       </main>
+      </div>{/* /inner flex row */}
 
       {/* CHAT: launcher + collapsible drawer */}
       {!chatOpen && (

@@ -1,132 +1,65 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 
-type Provenance = { sourceText: string; page: number | null; spanStart: number | null; spanEnd: number | null };
-type Record = {
-  id: string;
-  type: string;
-  coding: { display?: string } | null;
-  payload: any;
-  assertion: string;
-  negated: boolean;
-  confidence: number | null;
-  status: string;
-  provenance: Provenance | null;
-};
-type Job = { stage: string; status: string; error: string | null } | null;
+// Front door for the whole site: one passcode, then into the Medical workspace (with a top tab to
+// the Hair console). Reuses the console's /api/console/login cookie so a single passcode gates both.
+const TEAL = '#0d857b', DARK = '#0b6f66', BG = '#f6f5f3', INK = '#12312d', SUB = '#5b6b68', LINE = '#e0ddd7';
 
-export default function Home() {
-  const [patientName, setPatientName] = useState('');
-  const [patientId, setPatientId] = useState('');
-  const [file, setFile] = useState<File | null>(null);
-  const [records, setRecords] = useState<Record[]>([]);
-  const [job, setJob] = useState<Job>(null);
-  const [msg, setMsg] = useState('');
-  const [polling, setPolling] = useState(false);
+function Gate() {
+  const next = useSearchParams().get('next') || '/workspace';
+  const [passcode, setPasscode] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(true);
 
-  async function createPatient() {
-    setMsg('Creating patient…');
-    const res = await fetch('/api/patient', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ displayName: patientName }),
-    });
-    const data = await res.json();
-    if (!res.ok) return setMsg(`Error: ${data.error}`);
-    setPatientId(data.id);
-    setRecords([]);
-    setJob(null);
-    setMsg(`Patient created: ${data.id}`);
-  }
-
-  async function upload() {
-    if (!patientId || !file) return setMsg('Need a patient and a file first.');
-    setMsg('Uploading…');
-    const form = new FormData();
-    form.append('file', file);
-    form.append('patientId', patientId);
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: { authorization: 'Bearer dev' }, // ignored when DEV_NO_AUTH=1
-      body: form,
-    });
-    const data = await res.json();
-    if (!res.ok) return setMsg(`Error: ${data.error}`);
-    setMsg(`Queued document ${data.documentId}. Extracting…`);
-    setPolling(true);
-  }
-
-  // Poll records for the selected patient while polling is on.
+  // Already signed in? skip straight through.
   useEffect(() => {
-    if (!patientId || !polling) return;
-    let stop = false;
-    const tick = async () => {
-      const res = await fetch(`/api/records?patientId=${patientId}`);
-      const data = await res.json();
-      if (stop) return;
-      setRecords(data.records ?? []);
-      setJob(data.job ?? null);
-      if (data.job && (data.job.status === 'DONE' || data.job.status === 'FAILED')) {
-        setPolling(false);
-      }
-    };
-    tick();
-    const h = setInterval(tick, 2000);
-    return () => { stop = true; clearInterval(h); };
-  }, [patientId, polling]);
+    fetch('/api/console/login')
+      .then((r) => r.json())
+      .then((d) => { if (d.authed) window.location.href = next; else setChecking(false); })
+      .catch(() => setChecking(false));
+  }, [next]);
+
+  async function login() {
+    if (!passcode || busy) return;
+    setBusy(true); setErr('');
+    try {
+      const r = await fetch('/api/console/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ passcode }) });
+      if (r.ok) { window.location.href = next; return; }
+      const d = await r.json().catch(() => ({}));
+      setErr(d.error || 'Incorrect passcode');
+    } catch { setErr('Something went wrong — try again.'); }
+    finally { setBusy(false); }
+  }
 
   return (
-    <main>
-      <h1>Zoe Medical — extraction loop (Slice 1)</h1>
-      <p><a href="/workspace"><strong>→ Open analysis workspace</strong></a></p>
+    <div style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', background: BG, fontFamily: 'Poppins, system-ui, sans-serif', padding: 20 }}>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" />
+      <div style={{ width: '100%', maxWidth: 380, background: '#fff', borderRadius: 18, border: `1px solid ${LINE}`, boxShadow: '0 18px 50px -20px rgba(16,24,40,.35)', padding: 30, textAlign: 'center' }}>
+        <div style={{ width: 54, height: 54, margin: '0 auto 14px', borderRadius: 15, background: `linear-gradient(145deg, ${TEAL}, ${DARK} 70%)`, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 26, boxShadow: '0 6px 16px rgba(13,133,123,.35)' }}>Z</div>
+        <div style={{ fontWeight: 800, fontSize: 22, color: INK, letterSpacing: -0.4 }}>Zoe Intelligence</div>
+        <div style={{ fontSize: 13, color: SUB, marginTop: 5, marginBottom: 22 }}>Medical &amp; Hair consult tools · enter your passcode</div>
 
-      <section style={box}>
-        <h2>1. Create patient</h2>
-        <input value={patientName} onChange={(e) => setPatientName(e.target.value)} placeholder="Patient display name" style={input} />
-        <button onClick={createPatient} disabled={!patientName.trim()} style={btn}>Create</button>
-        {patientId && <p style={{ color: '#555' }}>patientId: <code>{patientId}</code></p>}
-      </section>
-
-      <section style={box}>
-        <h2>2. Upload document</h2>
-        <p style={{ color: '#555', marginTop: 0 }}>Use <code>samples/discharge_summary.txt</code>.</p>
-        <input type="file" accept=".txt,text/plain" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-        <button onClick={upload} disabled={!patientId || !file} style={btn}>Upload &amp; extract</button>
-      </section>
-
-      {msg && <p><strong>{msg}</strong></p>}
-      {job && <p>Job: stage <code>{job.stage}</code> / status <code>{job.status}</code>{job.error ? ` — ${job.error}` : ''}{polling ? ' (polling…)' : ''}</p>}
-
-      <section style={box}>
-        <h2>3. Extracted clinical records {records.length > 0 && `(${records.length})`}</h2>
-        {records.length > 0 && patientId && (
-          <p><a href={`/review?patientId=${patientId}`}><strong>→ Review &amp; sign this patient</strong></a></p>
+        {checking ? (
+          <div style={{ color: SUB, fontSize: 13, padding: '10px 0' }}>Loading…</div>
+        ) : (
+          <>
+            <input type="password" value={passcode} autoFocus onChange={(e) => setPasscode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && login()}
+              placeholder="Passcode" style={{ width: '100%', padding: '12px 14px', borderRadius: 11, border: `1px solid ${err ? '#e0857d' : LINE}`, fontSize: 15, outline: 'none', textAlign: 'center', letterSpacing: 2, boxSizing: 'border-box' }} />
+            {err && <div style={{ color: '#c0392b', fontSize: 12.5, marginTop: 9 }}>{err}</div>}
+            <button onClick={login} disabled={!passcode || busy}
+              style={{ width: '100%', marginTop: 14, padding: '12px', borderRadius: 11, border: 'none', background: passcode && !busy ? TEAL : '#c9d6d3', color: '#fff', fontWeight: 700, fontSize: 15, cursor: passcode && !busy ? 'pointer' : 'default' }}>
+              {busy ? 'Checking…' : 'Enter'}
+            </button>
+          </>
         )}
-        {records.length === 0 && <p style={{ color: '#777' }}>No records yet.</p>}
-        {records.map((r) => (
-          <div key={r.id} style={{ borderTop: '1px solid #eee', padding: '10px 0' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={tag('#e8eefc')}>{r.type}</span>
-              <strong>{r.coding?.display ?? '(no label)'}</strong>
-              {r.negated && <span style={tag('#fde8e8')}>NEGATED</span>}
-              {r.status === 'NEEDS_REVIEW' && <span style={tag('#fff3cd')}>NEEDS_REVIEW</span>}
-              <span style={{ color: '#777', fontSize: 13 }}>
-                conf {r.confidence ?? '—'} · {r.assertion}
-              </span>
-            </div>
-            <div style={{ fontSize: 14, margin: '4px 0' }}>value: <code>{JSON.stringify(r.payload)}</code></div>
-            <div style={{ fontSize: 13, color: '#444' }}>
-              source: <em>&ldquo;{r.provenance?.sourceText ?? '(missing!)'}&rdquo;</em>
-              {r.provenance?.spanStart != null && <span style={{ color: '#999' }}> [{r.provenance.spanStart}–{r.provenance.spanEnd}]</span>}
-            </div>
-          </div>
-        ))}
-      </section>
-    </main>
+      </div>
+    </div>
   );
 }
 
-const box: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 8, padding: 16, margin: '16px 0' };
-const input: React.CSSProperties = { padding: 8, marginRight: 8, minWidth: 240 };
-const btn: React.CSSProperties = { padding: '8px 14px', cursor: 'pointer' };
-const tag = (bg: string): React.CSSProperties => ({ background: bg, borderRadius: 4, padding: '2px 8px', fontSize: 12, fontWeight: 600 });
+export default function Home() {
+  return <Suspense fallback={null}><Gate /></Suspense>;
+}
