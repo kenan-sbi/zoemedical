@@ -1443,6 +1443,15 @@ function DocumentsTab({ ws, uploads, uploading, dragOver, setDragOver, uploadFil
     setOpenId(id); setText(null);
     setText(await (await fetch(`/api/document/${id}/text`)).json());
   }
+  async function downloadDoc(d: Doc) {
+    const r = await fetch(`/api/document/${d.id}/download`);
+    if (!r.ok) { alert('The original file for this document isn’t available on the server.'); return; }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = d.filename; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
   async function removeDoc(d: Doc) {
     if (!confirm(`Remove "${d.filename}" and all facts extracted from it? This cannot be undone.`)) return;
     setRemoving(d.id);
@@ -1509,6 +1518,10 @@ function DocumentsTab({ ws, uploads, uploading, dragOver, setDragOver, uploadFil
               📄 {d.filename} <span style={{ color: C.muted, fontSize: 12, fontWeight: 400 }}>· {d.mimeType}</span>
             </button>
             {s && uploadChip({ status: s.status, recordCount: s.recordCount } as any)}
+            <button onClick={() => downloadDoc(d)} title="Download the original file"
+              style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.primary, padding: '4px 10px' }}>
+              Download
+            </button>
             <button onClick={() => removeDoc(d)} disabled={removing === d.id} title="Remove document"
               style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: C.danger, padding: '4px 10px' }}>
               {removing === d.id ? 'Removing…' : 'Remove'}

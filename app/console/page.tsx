@@ -1,5 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
+import { Camera, Images, ImagePlus } from 'lucide-react';
 import { TopNav } from '../topnav';
 
 // Phone-width detector, so fixed multi-column grids can collapse instead of shrinking to slivers.
@@ -49,7 +50,8 @@ const grafts = (a: number | null, b: number | null) => a == null && b == null ? 
 // ---------- photo slot ----------
 function PhotoSlot({ label, value, onChange, small }: { label: string; value?: string; onChange: (k: string | undefined) => void; small?: boolean }) {
   const [busy, setBusy] = useState(false);
-  async function pick(file: File) {
+  async function pick(file?: File) {
+    if (!file) return;
     setBusy(true);
     const fd = new FormData(); fd.append('file', file);
     const r = await fetch('/api/console/upload', { method: 'POST', body: fd });
@@ -57,22 +59,23 @@ function PhotoSlot({ label, value, onChange, small }: { label: string; value?: s
     if (r.ok) onChange(d.key); else alert(d.error || 'upload failed');
   }
   const h = small ? 92 : 116;
+  const mini: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: `1px solid ${C.border}`, background: '#fff', color: C.sub, borderRadius: 7, padding: '6px 9px' };
   return (
     <div style={{ position: 'relative' }}>
-      <label style={{ display: 'block', height: h, borderRadius: 9, border: `1.5px dashed ${value ? C.accent : C.border}`, background: value ? '#000' : '#f7fafb', cursor: 'pointer', overflow: 'hidden', position: 'relative' }}>
+      <div style={{ height: h, borderRadius: 9, border: `1.5px dashed ${value ? C.accent : C.border}`, background: value ? '#000' : '#f7fafb', overflow: 'hidden', position: 'relative', display: 'grid', placeItems: 'center' }}>
         {value ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={photoUrl(value)} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        ) : busy ? (
+          <div style={{ fontSize: 12, color: C.sub }}>Uploading…</div>
         ) : (
-          <div style={{ height: '100%', display: 'grid', placeItems: 'center', textAlign: 'center', padding: 6 }}>
-            <div>
-              <div style={{ fontSize: 20, color: C.muted }}>{busy ? '…' : '＋'}</div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.sub }}>{busy ? 'Uploading' : label}</div>
-            </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {/* Camera opens the phone camera on mobile; Images opens the gallery/file picker. */}
+            <label style={mini} title="Take photo"><Camera size={16} /><input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { pick(e.target.files?.[0] as File); e.currentTarget.value = ''; }} /></label>
+            <label style={mini} title="Choose from gallery"><Images size={16} /><input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { pick(e.target.files?.[0] as File); e.currentTarget.value = ''; }} /></label>
           </div>
         )}
-        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) pick(f); e.currentTarget.value = ''; }} />
-      </label>
+      </div>
       <div style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', marginTop: 3 }}>{label}</div>
       {value && <button onClick={() => onChange(undefined)} title="Remove" style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 10, border: 'none', background: 'rgba(0,0,0,.55)', color: '#fff', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}>×</button>}
     </div>
@@ -246,12 +249,12 @@ function Shell({ children, onLogout }: { children: React.ReactNode; onLogout?: (
   return (
     <div style={{ minHeight: '100dvh', background: C.bg, color: C.text, font: `14px ${FONT}` }}>
       <TopNav active="hair" />
-      <header style={{ maxWidth: 860, margin: '0 auto', padding: '12px clamp(12px, 4vw, 24px) 0', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+      <header style={{ maxWidth: 1040, margin: 0, padding: '12px clamp(12px, 4vw, 24px) 0', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
         <div style={{ fontWeight: 700, fontSize: 15, letterSpacing: -0.2 }}>Doctor Console</div>
         <div style={{ fontSize: 11.5, color: C.muted }}>Hair-transplant standards — private teaching library</div>
         {onLogout && <><div style={{ flex: 1 }} /><button onClick={onLogout} style={linkBtn}>Sign out</button></>}
       </header>
-      <main style={{ maxWidth: 860, margin: '0 auto', padding: '16px clamp(12px, 4vw, 24px) 60px' }}>{children}</main>
+      <main style={{ maxWidth: 1040, margin: 0, padding: '16px clamp(12px, 4vw, 24px) 60px' }}>{children}</main>
     </div>
   );
 }
@@ -322,15 +325,20 @@ function AddTab({ onSaved }: { onSaved: () => void }) {
       const r = await fetch('/api/console/sort', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ keys }) });
       const d = await r.json();
       if (!r.ok) { alert(d.error || 'auto-sort failed'); return; }
-      // place each photo into its angle; on collision, fall to the next empty slot (drag-correctable)
-      const photos: Photos = { ...form.photos };
+      const assignments = d.assignments as { key: string; angle: string }[];
       const order = SLOTS.map((s) => s.key);
-      for (const a of d.assignments as { key: string; angle: string }[]) {
-        if (!photos[a.angle]) photos[a.angle] = a.key;
-        else { const empty = order.find((s) => !photos[s]); if (empty) photos[empty] = a.key; }
-      }
       const sug = d.suggestion as { sex: string | null; stage: string | null; confidence: string };
-      setForm((f) => ({ ...f, photos, sex: sug?.sex || f.sex, stage: sug?.stage || '' }));
+      // Place each photo into its detected angle; on collision, fall to the next empty slot
+      // (drag-correctable). Merge into the LATEST form (functional update) so photos taken one at a
+      // time via the camera each land in a free slot instead of clobbering the previous shot.
+      setForm((f) => {
+        const photos: Photos = { ...f.photos };
+        for (const a of assignments) {
+          if (!photos[a.angle]) photos[a.angle] = a.key;
+          else { const empty = order.find((s) => !photos[s]); if (empty) photos[empty] = a.key; }
+        }
+        return { ...f, photos, sex: sug?.sex || f.sex, stage: sug?.stage || f.stage };
+      });
       setSuggestion(sug?.stage || sug?.sex ? sug : null);
       setConfirmed(false); // must confirm before saving
     } finally { setSorting(false); }
@@ -359,13 +367,19 @@ function AddTab({ onSaved }: { onSaved: () => void }) {
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); onBulk([...e.dataTransfer.files]); }}
         style={{ border: `2px dashed ${dragOver ? C.accent : C.border}`, borderRadius: 12, padding: '18px 20px', textAlign: 'center', background: dragOver ? '#e8f2f5' : '#f7fafb', marginBottom: 16, transition: 'all .15s' }}>
-        <div style={{ fontSize: 24 }}>{sorting ? '🔎' : '📥'}</div>
-        <div style={{ fontSize: 13.5, fontWeight: 700, marginTop: 6 }}>{sorting ? 'Sorting photos by angle…' : 'Drop multiple scalp photos here'}</div>
-        <div style={{ fontSize: 12, color: C.sub, margin: '3px 0 8px' }}>They auto-sort into front / top / crown / left / right. Drag any thumbnail between slots to correct it.</div>
-        <label style={{ display: 'inline-block', padding: '7px 15px', background: C.primary, color: '#fff', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 12.5 }}>
-          Browse photos
-          <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => { onBulk([...(e.target.files ?? [])]); e.currentTarget.value = ''; }} />
-        </label>
+        <div style={{ display: 'grid', placeItems: 'center', color: C.primary, marginBottom: 6 }}><ImagePlus size={26} /></div>
+        <div style={{ fontSize: 13.5, fontWeight: 700 }}>{sorting ? 'Sorting photos by angle…' : 'Add scalp photos'}</div>
+        <div style={{ fontSize: 12, color: C.sub, margin: '3px 0 10px' }}>Take or choose several at once — they auto-sort into front / top / crown / left / right by detecting each angle. Drag any thumbnail between slots to correct it.</div>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 15px', background: C.primary, color: '#fff', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 12.5 }}>
+            <Camera size={15} /> Take photo
+            <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { onBulk([...(e.target.files ?? [])]); e.currentTarget.value = ''; }} />
+          </label>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 15px', background: '#fff', color: C.primary, border: `1px solid ${C.border}`, borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: 12.5 }}>
+            <Images size={15} /> Choose photos
+            <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => { onBulk([...(e.target.files ?? [])]); e.currentTarget.value = ''; }} />
+          </label>
+        </div>
       </div>
 
       {/* import non-photo fields from a note */}
