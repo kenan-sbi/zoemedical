@@ -656,9 +656,24 @@ function eventProse(r: Rec): string {
   }
 }
 
+// Tracks whether we're on a phone-width screen, so the sidebar can become a slide-in drawer.
+function useIsMobile(breakpoint = 860) {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const on = () => setMobile(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, [breakpoint]);
+  return mobile;
+}
+
 // ---------- main ----------
 function WorkspaceInner() {
   const initial = useSearchParams().get('patientId') ?? '';
+  const isMobile = useIsMobile();
+  const [navOpen, setNavOpen] = useState(false); // mobile sidebar drawer
   const [cases, setCases] = useState<CaseItem[]>([]);
   const [patientId, setPatientId] = useState(initial);
   const [ws, setWs] = useState<Workspace | null>(null);
@@ -785,8 +800,20 @@ function WorkspaceInner() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'flex', background: C.bg, color: C.text, font: `14px ${FONT}` }}>
+      {/* MOBILE: hamburger opens the patient drawer */}
+      {isMobile && !navOpen && (
+        <button onClick={() => setNavOpen(true)} aria-label="Open menu"
+          style={{ position: 'fixed', top: 10, left: 12, zIndex: 55, width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.border}`, background: C.card, color: C.primary, boxShadow: SHADOW_MD, cursor: 'pointer', fontSize: 18, display: 'grid', placeItems: 'center' }}>☰</button>
+      )}
+      {/* MOBILE: backdrop behind the open drawer */}
+      {isMobile && navOpen && (
+        <div onClick={() => setNavOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 55, background: 'rgba(16,24,40,.42)' }} />
+      )}
       {/* LEFT: brand + intake + cases */}
-      <aside style={{ width: 272, background: C.card, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+      <aside style={{
+        width: 272, background: C.card, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', overflow: 'auto',
+        ...(isMobile ? { position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 60, width: 'min(85vw, 320px)', transform: navOpen ? 'none' : 'translateX(-105%)', transition: 'transform .26s cubic-bezier(.22,.61,.36,1)' } : {}),
+      }}>
         <div style={{ padding: '17px 18px', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 30, height: 30, borderRadius: 9, background: `linear-gradient(145deg, ${C.accent}, ${C.primary} 65%)`, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 15, boxShadow: '0 2px 6px rgba(15,76,92,.30)' }}>Z</div>
           <div>
@@ -794,6 +821,10 @@ function WorkspaceInner() {
             <div style={{ fontSize: 10, color: C.muted, letterSpacing: 0.3, textTransform: 'uppercase', fontWeight: 600 }}>Clinical Intelligence</div>
           </div>
           <a href="/" style={{ marginLeft: 'auto', fontSize: 12, color: C.accent, textDecoration: 'none', fontWeight: 600 }}>Home</a>
+          {isMobile && (
+            <button onClick={() => setNavOpen(false)} aria-label="Close menu"
+              style={{ border: 'none', background: 'none', color: C.muted, cursor: 'pointer', fontSize: 20, lineHeight: 1, padding: '0 2px' }}>✕</button>
+          )}
         </div>
 
         <div style={{ padding: '14px 14px 14px' }}>
@@ -821,7 +852,7 @@ function WorkspaceInner() {
                   </div>
                 ) : (
                   <>
-                    <button onClick={() => setPatientId(c.patientId)} className={active ? '' : 'zcaselink'}
+                    <button onClick={() => { setPatientId(c.patientId); setNavOpen(false); }} className={active ? '' : 'zcaselink'}
                       style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '9px 11px', cursor: 'pointer', border: 'none', background: 'none' }}>
                       <div style={{ width: 30, height: 30, borderRadius: 15, flexShrink: 0, display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12.5, color: active ? '#fff' : C.sub, background: active ? C.primary : '#eceae6' }}>{(c.patientName.trim()[0] || '?').toUpperCase()}</div>
                       <div style={{ minWidth: 0, flex: 1 }}>
@@ -854,7 +885,7 @@ function WorkspaceInner() {
       </aside>
 
       {/* MAIN */}
-      <main style={{ flex: 1, overflow: 'auto', padding: '0 28px 28px' }}>
+      <main style={{ flex: 1, overflow: 'auto', padding: isMobile ? '0 13px 24px' : '0 28px 28px' }}>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" />
         <style dangerouslySetInnerHTML={{ __html: `
@@ -884,7 +915,7 @@ function WorkspaceInner() {
           .zfab:hover { transform: translateY(-2px) scale(1.04); }
         `}} />
         {!patientId ? (
-          <div style={{ color: C.muted, marginTop: 60, textAlign: 'center' }}>Select or create a patient on the left to begin.</div>
+          <div style={{ color: C.muted, marginTop: 60, textAlign: 'center' }}>{isMobile ? 'Tap ☰ (top-left) to pick or add a patient.' : 'Select or create a patient on the left to begin.'}</div>
         ) : !ws ? (
           <div style={{ maxWidth: 980, margin: '0 auto', paddingTop: 22 }}>
             {wsLoading ? (<><Skeleton h={64} mb={14} r={10} /><Skeleton h={40} w="60%" mb={18} /><TabSkeleton /></>)
@@ -893,7 +924,7 @@ function WorkspaceInner() {
         ) : (
           <div style={{ maxWidth: 980, margin: '0 auto' }}>
             {/* Sticky clinical header — identity, counts, and the allergy banner never scroll away */}
-            <div style={{ position: 'sticky', top: 0, zIndex: 20, background: C.bg, paddingTop: 16, boxShadow: '0 10px 16px -14px rgba(16,24,40,.35)' }}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 20, background: C.bg, paddingTop: isMobile ? 54 : 16, boxShadow: '0 10px 16px -14px rgba(16,24,40,.35)' }}>
               <PatientBanner name={ws.patient.displayName} sex={ws.patient.sex} age={ws.patient.age} records={ws.records}
                 docCount={ws.documents.length} activeCount={bannerCounts.active} medCount={bannerCounts.meds} signed={ws.case.signed} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 2, borderBottom: `1px solid ${C.border}`, background: C.bg, overflowX: 'auto' }} className="zscroll">
@@ -1491,7 +1522,7 @@ function DocumentsTab({ ws, uploads, uploading, dragOver, setDragOver, uploadFil
           )}
           {extracting && <div style={{ marginTop: 8 }}><Skeleton h={11} w="82%" mb={6} /><Skeleton h={11} w="55%" mb={0} /></div>}
           {openId === d.id && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginTop: 10 }}>
               <div>
                 <SectionLabel>Original text</SectionLabel>
                 <pre dir="auto" style={{ whiteSpace: 'pre-wrap', background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, fontSize: 12.5, margin: 0, fontFamily: 'ui-monospace, monospace' }}>
@@ -2115,7 +2146,7 @@ function ChatDrawer({ open, onClose, patientId, patientName }: { open: boolean; 
 
   return (
     <aside style={{
-      position: 'fixed', top: 0, right: 0, height: '100vh', width: 404, background: C.card,
+      position: 'fixed', top: 0, right: 0, height: '100dvh', width: 'min(404px, 100vw)', background: C.card,
       borderLeft: `1px solid ${C.border}`, boxShadow: '-8px 0 24px rgba(16,24,40,.10)',
       display: 'flex', flexDirection: 'column', transform: open ? 'translateX(0)' : 'translateX(110%)',
       transition: 'transform .22s ease', zIndex: 50,
@@ -2238,7 +2269,7 @@ function TeamPanel({ onClose, onActed }: { onClose: () => void; onActed: () => v
               {canManage ? (
                 <div style={{ marginTop: 14, ...card, padding: 12, background: '#fbfaf8' }}>
                   <SectionLabel>Add team member</SectionLabel>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, marginBottom: 8 }}>
                     <input value={nm} onChange={(e) => setNm(e.target.value)} placeholder="Name" style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, outline: 'none' }} />
                     <input value={em} onChange={(e) => setEm(e.target.value)} placeholder="Email" style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, outline: 'none' }} />
                     <select value={rl} onChange={(e) => setRl(e.target.value)} style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, outline: 'none' }}>{ALL_ROLES.map((r) => <option key={r} value={r}>{r.toLowerCase()}</option>)}</select>

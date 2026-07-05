@@ -1,6 +1,19 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
 
+// Phone-width detector, so fixed multi-column grids can collapse instead of shrinking to slivers.
+function useIsMobile(breakpoint = 760) {
+  const [mobile, setMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${breakpoint}px)`);
+    const on = () => setMobile(mq.matches);
+    on();
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, [breakpoint]);
+  return mobile;
+}
+
 // ---------- design tokens (same calm clinical palette as the main build) ----------
 const C = {
   primary: '#0f4c5c', primaryDark: '#0a3743', accent: '#2a8fa8', warm: '#b45309',
@@ -67,6 +80,7 @@ function PhotoSlot({ label, value, onChange, small }: { label: string; value?: s
 
 // The 5 angle slots with drag-to-correct (swap two slots) + per-slot upload/remove.
 function PhotoSlots({ photos, set }: { photos: Photos; set: (p: Photos) => void }) {
+  const isMobile = useIsMobile();
   const [dragFrom, setDragFrom] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   async function upload(slot: string, file: File) {
@@ -83,7 +97,7 @@ function PhotoSlots({ photos, set }: { photos: Photos; set: (p: Photos) => void 
     set(p);
   }
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 10 }}>
       {SLOTS.map((s) => {
         const val = photos[s.key];
         const dragging = dragFrom === s.key;
@@ -114,6 +128,7 @@ function PhotoSlots({ photos, set }: { photos: Photos; set: (p: Photos) => void 
 // ---------- shared case fields ----------
 // `suggestion` (optional) marks sex+stage as an AI suggestion that must be confirmed/overridden.
 function CaseFields({ form, set, suggestion, confirmed, onConfirm }: { form: Form; set: (f: Form) => void; suggestion?: { sex: string | null; stage: string | null; confidence: string } | null; confirmed?: boolean; onConfirm?: () => void }) {
+  const isMobile = useIsMobile();
   const stages = stagesFor(form.sex);
   const input: React.CSSProperties = { padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, outline: 'none', width: '100%' };
   const suggesting = !!suggestion && !confirmed;
@@ -132,7 +147,7 @@ function CaseFields({ form, set, suggestion, confirmed, onConfirm }: { form: For
         </div>
       )}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
         <div>
           <SectionLabel>Sex {suggesting && sugBadge}</SectionLabel>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -229,13 +244,13 @@ export default function ConsolePage() {
 function Shell({ children, onLogout }: { children: React.ReactNode; onLogout?: () => void }) {
   return (
     <div style={{ minHeight: '100vh', background: C.bg, color: C.text, font: `14px ${FONT}` }}>
-      <header style={{ background: C.card, borderBottom: `1px solid ${C.border}`, padding: '13px 24px', display: 'flex', alignItems: 'center', gap: 10 }}>
+      <header style={{ background: C.card, borderBottom: `1px solid ${C.border}`, padding: '13px clamp(12px, 4vw, 24px)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ width: 28, height: 28, borderRadius: 7, background: C.primary, color: '#fff', display: 'grid', placeItems: 'center', fontWeight: 700 }}>Z</div>
         <div><div style={{ fontWeight: 700, fontSize: 15, letterSpacing: -0.2 }}>Doctor Console</div><div style={{ fontSize: 11, color: C.muted }}>Hair-transplant standards — private teaching library</div></div>
         <div style={{ flex: 1 }} />
         {onLogout && <button onClick={onLogout} style={linkBtn}>Sign out</button>}
       </header>
-      <main style={{ maxWidth: 860, margin: '0 auto', padding: '22px 24px 60px' }}>{children}</main>
+      <main style={{ maxWidth: 860, margin: '0 auto', padding: '22px clamp(12px, 4vw, 24px) 60px' }}>{children}</main>
     </div>
   );
 }
@@ -464,6 +479,7 @@ function EditModal({ c, onClose, onSaved }: { c: HairCase; onClose: () => void; 
 
 // ---------- Rulebook ----------
 function RulebookTab() {
+  const isMobile = useIsMobile();
   const [rules, setRules] = useState<any | null>(null);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -490,7 +506,7 @@ function RulebookTab() {
       <div style={{ fontSize: 12.5, color: C.sub, marginBottom: 16 }}>Your standards. The agent applies these to every assessment — edit them any time.</div>
 
       <SectionLabel>Target density per zone (grafts / cm²)</SectionLabel>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 18 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(3,1fr)', gap: 10, marginBottom: 18 }}>
         {['hairline', 'mid', 'crown'].map((z) => (
           <div key={z}><div style={{ fontSize: 12, color: C.sub, marginBottom: 4, textTransform: 'capitalize' }}>{z}</div><input inputMode="numeric" value={num(rules.densityPerZone?.[z])} onChange={(e) => setZone(z, e.target.value.replace(/[^\d]/g, ''))} style={inp} /></div>
         ))}
@@ -558,14 +574,15 @@ const PRELIM = (
 );
 
 function IntakeFields({ intake, set }: { intake: Intake; set: (v: Intake) => void }) {
+  const isMobile = useIsMobile();
   const input: React.CSSProperties = { padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.border}`, fontSize: 13, outline: 'none', width: '100%' };
   return (
     <div>
       <SectionLabel>Guided photos — same five angles every time</SectionLabel>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)', gap: 10, marginBottom: 16 }}>
         {SLOTS.map((s) => <PhotoSlot key={s.key} label={s.label} value={intake.photos[s.key]} onChange={(k) => set({ ...intake, photos: { ...intake.photos, [s.key]: k } })} />)}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 12 }}>
         <div>
           <SectionLabel>Sex</SectionLabel>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -640,6 +657,7 @@ function AssessTab({ libraryCount }: { libraryCount: number }) {
 }
 
 function AssessmentView({ data, onDone, onChange }: { data: { assessment: Assessment; references: HairCase[] }; onDone: () => void; onChange: (a: Assessment) => void }) {
+  const isMobile = useIsMobile();
   const a = data.assessment; const est = a.estimate ?? {}; const v = est.vision ?? {};
   const signed = !!a.signedAt;
   const [fStage, setFStage] = useState(a.finalStage ?? est.stage ?? '');
@@ -685,7 +703,7 @@ function AssessmentView({ data, onDone, onChange }: { data: { assessment: Assess
       </div>
 
       {/* (d) preliminary estimate — RANGES only */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
         <div style={{ ...card, padding: 14, borderLeft: `3px solid ${C.accent}` }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: .5 }}>Preliminary stage</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginTop: 6 }}>{est.stage}</div>
