@@ -203,7 +203,7 @@ export default function ConsolePage() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [passcode, setPasscode] = useState('');
   const [loginErr, setLoginErr] = useState('');
-  const [tab, setTab] = useState<'add' | 'library' | 'rulebook' | 'assess'>('assess');
+  const [tab, setTab] = useState<'add' | 'library' | 'rulebook' | 'assess'>('add');
   const [cases, setCases] = useState<HairCase[]>([]);
 
   const loadCases = useCallback(async () => {
@@ -233,7 +233,7 @@ export default function ConsolePage() {
   return (
     <Shell onLogout={logout}>
       <div style={{ display: 'flex', gap: 2, borderBottom: `1px solid ${C.border}`, marginBottom: 18, flexWrap: 'wrap' }}>
-        {([['assess', 'New assessment'], ['add', 'Add case'], ['library', `Case library · ${library.length}`], ['rulebook', 'Rulebook']] as const).map(([k, label]) => (
+        {([['add', 'Add case'], ['assess', 'New assessment'], ['library', `Case library · ${library.length}`], ['rulebook', 'Rulebook']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setTab(k)} style={{ padding: '9px 15px', cursor: 'pointer', border: 'none', background: 'none', fontSize: 13.5, fontWeight: tab === k ? 700 : 500, color: tab === k ? C.primary : C.sub, borderBottom: `2px solid ${tab === k ? C.primary : 'transparent'}`, marginBottom: -1 }}>{label}</button>
         ))}
       </div>
