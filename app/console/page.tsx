@@ -433,6 +433,7 @@ function AddTab({ onSaved }: { onSaved: () => void }) {
 function LibraryTab({ cases, reload }: { cases: HairCase[]; reload: () => void }) {
   const [filter, setFilter] = useState('');
   const [editing, setEditing] = useState<HairCase | null>(null);
+  const [viewing, setViewing] = useState<HairCase | null>(null);
   const stages = [...new Set(cases.map((c) => c.stage))].sort();
   const shown = filter ? cases.filter((c) => c.stage === filter) : cases;
 
@@ -451,8 +452,8 @@ function LibraryTab({ cases, reload }: { cases: HairCase[]; reload: () => void }
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
         {shown.map((c) => (
-          <div key={c.id} style={{ ...card, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: C.border, aspectRatio: '2 / 1' }}>
+          <div key={c.id} className="zcard" style={{ ...card, overflow: 'hidden' }}>
+            <div onClick={() => setViewing(c)} title="View full details" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: C.border, aspectRatio: '2 / 1', cursor: 'pointer' }}>
               {['front', 'top', 'crown', 'left'].map((k) => (
                 <div key={k} style={{ background: '#000', overflow: 'hidden' }}>
                   {c.photos?.[k] ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={photoUrl(c.photos[k])} alt={k} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: C.muted, fontSize: 10 }}>{k}</div>}
@@ -463,11 +464,12 @@ function LibraryTab({ cases, reload }: { cases: HairCase[]; reload: () => void }
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <strong style={{ fontSize: 14 }}>{c.stage}</strong>
                 <span style={{ fontSize: 11, color: C.sub, textTransform: 'capitalize' }}>· {c.sex}</span>
-                {c.technique && <span style={{ fontSize: 11, background: '#e3eef1', color: C.primary, borderRadius: 999, padding: '1px 8px', fontWeight: 600 }}>{c.technique}</span>}
+                {c.technique && <span style={{ fontSize: 11, background: C.primarySoft, color: C.primary, borderRadius: 999, padding: '1px 8px', fontWeight: 600 }}>{c.technique}</span>}
               </div>
               <div style={{ fontSize: 13, color: C.text, marginTop: 3 }}>{grafts(c.graftMin, c.graftMax)} grafts</div>
               {c.notes && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.notes}</div>}
               <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
+                <button onClick={() => setViewing(c)} style={{ ...linkBtn, color: C.primary }}>View</button>
                 <button onClick={() => setEditing(c)} style={linkBtn}>Edit</button>
                 <button onClick={() => del(c.id)} style={{ ...linkBtn, color: '#b3261e' }}>Delete</button>
               </div>
@@ -476,6 +478,68 @@ function LibraryTab({ cases, reload }: { cases: HairCase[]; reload: () => void }
         ))}
       </div>
       {editing && <EditModal c={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); reload(); }} />}
+      {viewing && <ViewModal c={viewing} onClose={() => setViewing(null)} onEdit={() => { setEditing(viewing); setViewing(null); }} />}
+    </div>
+  );
+}
+
+// Read-only detail view for a library case: all five angles + every field.
+function ViewModal({ c, onClose, onEdit }: { c: HairCase; onClose: () => void; onEdit: () => void }) {
+  const est = c.estimate as any;
+  const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
+    <div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: C.muted }}>{label}</div>
+      <div style={{ fontSize: 14, color: C.text, marginTop: 2, textTransform: label === 'Sex' ? 'capitalize' : 'none' }}>{value}</div>
+    </div>
+  );
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(16,24,40,.45)', display: 'grid', placeItems: 'start center', overflow: 'auto', zIndex: 50, padding: '32px 16px' }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: '100%', maxWidth: 780, padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+          <strong style={{ fontSize: 19 }}>{c.stage}</strong>
+          <span style={{ fontSize: 13, color: C.sub, textTransform: 'capitalize' }}>· {c.sex}</span>
+          {c.technique && <span style={{ fontSize: 12, background: C.primarySoft, color: C.primary, borderRadius: 999, padding: '2px 10px', fontWeight: 700 }}>{c.technique}</span>}
+          <div style={{ flex: 1 }} />
+          <button onClick={onEdit} style={{ ...linkBtn, color: C.primary }}>Edit</button>
+          <button onClick={onClose} aria-label="Close" style={{ border: 'none', background: 'none', color: C.muted, cursor: 'pointer', fontSize: 22, lineHeight: 1, padding: '0 2px' }}>✕</button>
+        </div>
+
+        {/* all five standardized angles */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 18 }}>
+          {SLOTS.map((s) => (
+            <div key={s.key}>
+              <div style={{ aspectRatio: '3 / 4', background: '#000', borderRadius: 8, overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
+                {c.photos?.[s.key]
+                  ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={photoUrl(c.photos[s.key])} alt={s.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span style={{ color: C.muted, fontSize: 11 }}>no photo</span>}
+              </div>
+              <div style={{ fontSize: 10.5, color: C.muted, textAlign: 'center', marginTop: 3 }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14, marginBottom: c.notes ? 16 : 0 }}>
+          <Field label="Stage" value={c.stage} />
+          <Field label="Sex" value={c.sex} />
+          <Field label="Grafts" value={`${grafts(c.graftMin, c.graftMax)}`} />
+          <Field label="Technique" value={c.technique || '—'} />
+          <Field label="Added" value={new Date(c.createdAt).toLocaleDateString()} />
+        </div>
+
+        {c.notes && (
+          <div>
+            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: C.muted, marginBottom: 4 }}>Notes</div>
+            <div style={{ fontSize: 13.5, color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{c.notes}</div>
+          </div>
+        )}
+
+        {est?.rationale && (
+          <div style={{ marginTop: 16, padding: '11px 13px', background: C.primarySoft, borderRadius: 9 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: C.primary, marginBottom: 4 }}>AI read at capture</div>
+            <div style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5 }}>{est.rationale}</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
